@@ -7,6 +7,7 @@ const User = require('./models/user');
 
 app.get('/users', User.getAll);
 app.get('/users/:id', User.getOne);
+app.delete('/users/:id', User.deleteOne);
 
 app.get('/ping', (req, res) => {
 	res.status(200).send('pong');

@@ -1,13 +1,11 @@
 require('dotenv').config();
-
 const express = require('express');
 const app = express();
 
-const User = require('./models/user');
+const userRoutes = require('./routes/userRoutes');
 
-app.get('/users', User.getAll);
-app.get('/users/:id', User.getOne);
-app.delete('/users/:id', User.deleteOne);
+app.use(express.json());
+app.use('/users', userRoutes);
 
 app.get('/ping', (req, res) => {
 	res.status(200).send('pong');

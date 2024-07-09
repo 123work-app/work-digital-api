@@ -20,7 +20,7 @@ class Freelancer {
 				sql: 'SELECT * FROM freelancer WHERE user_id = ?',
 				args: [userId],
 			});
-			usuário;
+
 			if (existingUser.rows.length > 0) {
 				return res.status(400).json({
 					message: 'Perfil de prestador já cadastrado.',

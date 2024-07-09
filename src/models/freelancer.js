@@ -103,6 +103,35 @@ class Freelancer {
 			});
 		}
 	};
+
+	static deleteOne = async (req, res) => {
+		try {
+			const { id } = req.params;
+			const data = await db.execute({
+				sql: 'SELECT * FROM freelancer WHERE id = ?',
+				args: [id],
+			});
+
+			if (data.rows.length === 0) {
+				return res.status(404).json({
+					message: `O prestador de ID ${id} não foi encontrado no banco de dados.`,
+				});
+			}
+
+			await db.execute({
+				sql: 'DELETE FROM freelancer WHERE id = ?',
+				args: [id],
+			});
+
+			res.status(200).json({ message: 'Prestador deletado com sucesso!' });
+		} catch (err) {
+			console.error(err);
+			res.status(500).json({
+				message: 'Erro ao deletar prestador.',
+				error: err.stack,
+			});
+		}
+	};
 }
 
 module.exports = Freelancer;

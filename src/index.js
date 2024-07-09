@@ -11,6 +11,11 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/freelancers', freelancerRoutes);
 app.use('/users', userRoutes);
 
+app.get('/roles', (req, res) => {
+	const roles = require('./config/roles.json');
+	res.status(200).json(roles);
+});
+
 app.get('/ping', (req, res) => {
 	res.status(200).send('pong');
 });

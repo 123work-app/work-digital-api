@@ -145,7 +145,7 @@ class User {
 		try {
 			const { id } = req.params;
 			const data = await db.execute({
-				sql: 'SELECT * FROM User WHERE id = ?',
+				sql: 'SELECT * FROM user WHERE id = ?',
 				args: [id],
 			});
 
@@ -156,7 +156,7 @@ class User {
 			}
 
 			await db.execute({
-				sql: 'DELETE FROM User WHERE id = ?',
+				sql: 'DELETE FROM user WHERE id = ?',
 				args: [id],
 			});
 

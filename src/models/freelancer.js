@@ -28,7 +28,7 @@ class Freelancer {
 			}
 
 			await db.execute({
-				sql: 'INSERT INTO freelancer (user_id, role, description, profile_pciture, picture_folder) VALUES (?, ?, ?, ?, ?)',
+				sql: 'INSERT INTO freelancer (user_id, role, description, profile_picture, picture_folder) VALUES (?, ?, ?, ?, ?)',
 				args: [userId, role, description, profilePicture || null, pictureFolder || null],
 			});
 

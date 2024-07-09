@@ -2,9 +2,13 @@ require('dotenv').config();
 const express = require('express');
 const app = express();
 
+const freelancerRoutes = require('./routes/freelancerRoutes');
 const userRoutes = require('./routes/userRoutes');
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.use('/freelancers', freelancerRoutes);
 app.use('/users', userRoutes);
 
 app.get('/ping', (req, res) => {

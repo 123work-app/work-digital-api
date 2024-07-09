@@ -1,25 +1,13 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const db = require('../db');
+const db = require('../config/db');
 const _ = require('lodash');
 
 const Validator = require('../utils/validator');
 
 class User {
-	static async create(req, res) {
-		const {
-			name,
-			email,
-			password,
-			cpf,
-			state,
-			city,
-			neighborhood,
-			street,
-			number,
-			phone,
-			birthdate,
-		} = req.body;
+	static create = async (req, res) => {
+		const { name, email, password, cpf, state, city, neighborhood, street, number, phone, birthdate } = req.body;
 
 		if (
 			!name ||
@@ -34,15 +22,11 @@ class User {
 			!phone ||
 			!birthdate
 		) {
-			return res
-				.status(400)
-				.json({ message: 'Preencha todos os campos.' });
+			return res.status(400).json({ message: 'Preencha todos os campos.' });
 		}
 
-		if (!Validator.checkCPF(cpf)) {
-			return res
-				.status(400)
-				.json({ message: 'O CPF inserido é inválido.' });
+		if (!Validator.isCPF(cpf)) {
+			return res.status(400).json({ message: 'O CPF inserido é inválido.' });
 		}
 
 		// Sanitize input
@@ -54,28 +38,14 @@ class User {
 				args: [email, cpf],
 			});
 			if (existingUser.rows.length > 0) {
-				return res
-					.status(400)
-					.json({ error: 'E-mail ou CPF já cadastrados.' });
+				return res.status(400).json({ message: 'E-mail ou CPF já cadastrados.' });
 			}
 
 			const hashedPassword = await bcrypt.hash(password, 10);
 
 			await db.execute({
 				sql: 'INSERT INTO User (name, email, password, cpf, state, city, neighborhood, street, number, phone, birthdate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-				args: [
-					name,
-					email,
-					hashedPassword,
-					cpf,
-					state,
-					city,
-					neighborhood,
-					street,
-					number,
-					phone,
-					birthdate,
-				],
+				args: [name, email, hashedPassword, cpf, state, city, neighborhood, street, number, phone, birthdate],
 			});
 
 			res.status(201).json({
@@ -88,15 +58,13 @@ class User {
 				error: err.stack,
 			});
 		}
-	}
+	};
 
-	static async auth(req, res) {
+	static auth = async (req, res) => {
 		const { email, password } = req.body;
 
 		if (!email || !password) {
-			return res
-				.status(400)
-				.json({ message: 'Preencha ambos os campos.' });
+			return res.status(400).json({ message: 'Preencha ambos os campos.' });
 		}
 
 		try {
@@ -107,26 +75,15 @@ class User {
 			const user = _.zipObject(data.columns, data.rows[0]);
 
 			if (!user) {
-				return res
-					.status(400)
-					.json({ message: 'E-mail ou senha inválidos.' });
+				return res.status(400).json({ message: 'E-mail ou senha inválidos.' });
 			}
 
-			const isPasswordValid = await bcrypt.compare(
-				password,
-				user.password
-			);
+			const isPasswordValid = await bcrypt.compare(password, user.password);
 			if (!isPasswordValid) {
-				return res
-					.status(400)
-					.json({ message: 'E-mail ou senha inválidos.' });
+				return res.status(400).json({ message: 'E-mail ou senha inválidos.' });
 			}
 
-			const token = jwt.sign(
-				{ id: user.id, email: user.email },
-				process.env.JWT_SECRET,
-				{ expiresIn: '1h' }
-			);
+			const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
 			res.status(200).json({ token, user });
 		} catch (err) {
@@ -136,18 +93,16 @@ class User {
 				error: err.stack,
 			});
 		}
-	}
+	};
 
-	static async getAll(req, res) {
+	static getAll = async (req, res) => {
 		try {
 			const data = await db.execute({
 				sql: 'SELECT * FROM user',
 				args: [],
 			});
 
-			const users = data.rows.map((row) =>
-				_.zipObject(data.columns, row)
-			);
+			const users = data.rows.map((row) => _.zipObject(data.columns, row));
 
 			res.status(200).json(users);
 		} catch (err) {
@@ -157,12 +112,12 @@ class User {
 				error: err.stack,
 			});
 		}
-	}
+	};
 
-	static async getOne(req, res) {
+	static getOne = async (req, res) => {
+		const { id } = req.params;
+
 		try {
-			const { id } = req.params;
-
 			const data = await db.execute({
 				sql: 'SELECT * FROM user WHERE id = ?',
 				args: [id],
@@ -184,9 +139,9 @@ class User {
 				error: err.stack,
 			});
 		}
-	}
+	};
 
-	static async deleteOne(req, res) {
+	static deleteOne = async (req, res) => {
 		try {
 			const { id } = req.params;
 			const data = await db.execute({
@@ -213,7 +168,7 @@ class User {
 				error: err.stack,
 			});
 		}
-	}
+	};
 }
 
 module.exports = User;

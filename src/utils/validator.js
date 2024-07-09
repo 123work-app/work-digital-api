@@ -1,5 +1,7 @@
+const roles = require('../config/roles.json');
+
 class Validator {
-	static checkCPF = (cpf) => {
+	static isCPF = (cpf) => {
 		cpf = cpf.replace(/[^\d]/g, '');
 		if (cpf.length !== 11) return false;
 		if (cpf === '00000000000') return false;
@@ -31,6 +33,8 @@ class Validator {
 		if (mod != parseInt(cpf.substring(10, 11))) return false;
 		return true;
 	};
+
+	static isRole = (role) => roles.includes(role);
 }
 
 module.exports = Validator;

@@ -5,9 +5,9 @@ const Validator = require('../utils/validator');
 
 class Freelancer {
 	static create = async (req, res) => {
-		const { userId, role, description, pfp, imagesFolder } = req.body;
+		const { userId, role, description, profilePicture, pictureFolder } = req.body;
 
-		if (!userId || !role || !description || !pfp || !imagesFolder) {
+		if (!userId || !role || !description) {
 			return res.status(400).json({ message: 'Preencha todos os campos.' });
 		}
 
@@ -28,8 +28,8 @@ class Freelancer {
 			}
 
 			await db.execute({
-				sql: 'INSERT INTO freelancer (user_id, role, description, pfp, images_folder) VALUES (?, ?, ?, ?, ?)',
-				args: [userId, role, description, pfp, imagesFolder],
+				sql: 'INSERT INTO freelancer (user_id, role, description, profile_pciture, picture_folder) VALUES (?, ?, ?, ?, ?)',
+				args: [userId, role, description, profilePicture || null, pictureFolder || null],
 			});
 
 			res.status(201).json({

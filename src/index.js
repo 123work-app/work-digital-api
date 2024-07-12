@@ -2,8 +2,11 @@ require('dotenv').config();
 const express = require('express');
 const app = express();
 
-const freelancerRoutes = require('./routes/freelancerRoutes');
-const userRoutes = require('./routes/userRoutes');
+const freelancerRoutes = require('./routes/freelancer');
+const userRoutes = require('./routes/user');
+const upload = require('./config/multer');
+
+const Cloud = require('./utils/cloud');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -15,6 +18,32 @@ app.get('/roles', (req, res) => {
 	const roles = require('./config/roles.json');
 	res.status(200).json(roles);
 });
+
+// Upload dummy test
+// req.body.username
+// req.file
+// app.post('/upload', upload.any(), async (req, res) => {
+// 	const { username } = req.body;
+
+// 	if (!username || !req.files[0]) {
+// 		return res.status(400).json('Please provide your username and profile picture.');
+// 	}
+
+// 	try {
+// 		console.log(req.files);
+// 		// const filename = `${username}`;
+
+// 		// const url = await Cloud.upload(req.file.buffer, filename);
+
+// 		res.status(200).json({ url: req.files[0] });
+// 	} catch (err) {
+// 		console.error(err);
+// 		res.status(500).json({
+// 			message: 'Error uploading image to Cloudinary',
+// 			error: err.stack,
+// 		});
+// 	}
+// });
 
 app.get('/ping', (req, res) => {
 	res.status(200).send('pong');

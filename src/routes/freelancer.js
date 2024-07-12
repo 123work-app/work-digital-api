@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
+const upload = require('../config/multer');
 
 const Freelancer = require('../models/freelancer');
 
-router.post('/', Freelancer.create);
+router.post('/', upload.any(), Freelancer.create);
 router.get('/', Freelancer.getAll);
 router.get('/:id', Freelancer.getOne);
 router.delete('/:id', Freelancer.deleteOne);

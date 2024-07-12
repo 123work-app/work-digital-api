@@ -35,6 +35,13 @@ class Validator {
 	};
 
 	static isRole = (role) => roles.includes(role);
+
+	static isArrayOfRoles = (arr) => {
+		if (!Array.isArray(arr) || arr.length == 0) {
+			return false;
+		}
+		return arr.every(this.isRole);
+	};
 }
 
 module.exports = Validator;

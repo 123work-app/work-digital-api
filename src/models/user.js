@@ -1,7 +1,6 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
-const _ = require('lodash');
 
 const Validator = require('../utils/validator');
 
@@ -30,7 +29,7 @@ class User {
 		}
 
 		// Sanitize input
-		cpf.replace(/[^\d]/g, '');
+		cpf = cpf.replace(/[^\d]/g, '');
 
 		try {
 			const existingUser = await db.execute({
@@ -44,7 +43,7 @@ class User {
 			const hashedPassword = await bcrypt.hash(password, 10);
 
 			await db.execute({
-				sql: 'INSERT INTO User (name, email, password, cpf, state, city, neighborhood, street, number, phone, birthdate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+				sql: 'INSERT INTO user (name, email, password, cpf, state, city, neighborhood, street, number, phone, birthdate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
 				args: [name, email, hashedPassword, cpf, state, city, neighborhood, street, number, phone, birthdate],
 			});
 
@@ -68,11 +67,11 @@ class User {
 		}
 
 		try {
-			const data = await db.execute({
+			const result = await db.execute({
 				sql: 'SELECT * FROM user WHERE email = ?',
 				args: [email],
 			});
-			const user = _.zipObject(data.columns, data.rows[0]);
+			const user = result.rows[0];
 
 			if (!user) {
 				return res.status(400).json({ message: 'E-mail ou senha inválidos.' });
@@ -97,12 +96,12 @@ class User {
 
 	static getAll = async (req, res) => {
 		try {
-			const data = await db.execute({
+			const result = await db.execute({
 				sql: 'SELECT * FROM user',
 				args: [],
 			});
 
-			const users = data.rows.map((row) => _.zipObject(data.columns, row));
+			const users = result.rows;
 
 			res.status(200).json(users);
 		} catch (err) {
@@ -118,18 +117,18 @@ class User {
 		const { id } = req.params;
 
 		try {
-			const data = await db.execute({
+			const result = await db.execute({
 				sql: 'SELECT * FROM user WHERE id = ?',
 				args: [id],
 			});
 
-			if (data.rows.length === 0) {
+			if (result.rows.length === 0) {
 				return res.status(404).json({
 					message: `O usuário de ID ${id} não foi encontrado no banco de dados.`,
 				});
 			}
 
-			const user = _.zipObject(data.columns, data.rows[0]);
+			const user = result.rows[0];
 
 			res.status(200).json(user);
 		} catch (err) {
@@ -144,12 +143,12 @@ class User {
 	static deleteOne = async (req, res) => {
 		try {
 			const { id } = req.params;
-			const data = await db.execute({
+			const result = await db.execute({
 				sql: 'SELECT * FROM user WHERE id = ?',
 				args: [id],
 			});
 
-			if (data.rows.length === 0) {
+			if (result.rows.length === 0) {
 				return res.status(404).json({
 					message: `O usuário de ID ${id} não foi encontrado no banco de dados.`,
 				});
@@ -160,7 +159,7 @@ class User {
 				args: [id],
 			});
 
-			res.status(200).json({ message: 'Usuário deletado com sucesso!' });
+			res.status(200).json({ message: 'Usuário deletado com sucesso!', user: result.rows[0] });
 		} catch (err) {
 			console.error(err);
 			res.status(500).json({

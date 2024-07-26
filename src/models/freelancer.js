@@ -1,12 +1,11 @@
 const db = require('../config/db');
-const _ = require('lodash');
 
 const Validator = require('../utils/validator');
 const Cloud = require('../utils/cloud');
 
 class Freelancer {
 	static create = async (req, res) => {
-		let { cpf, roles, description } = req.body;
+		let { cpf, roles, description, highlights } = req.body;
 
 		if (!cpf || !roles || !description) {
 			return res.status(400).json({ message: 'Preencha todos os campos.' });
@@ -14,6 +13,7 @@ class Freelancer {
 
 		try {
 			roles = JSON.parse(roles);
+			highlights = JSON.parse(highlights || '[]');
 			cpf = cpf.replace(/[^\d]/g, '');
 
 			if (!Array.isArray(roles) || !Validator.isArrayOfRoles(roles)) {
@@ -70,10 +70,8 @@ class Freelancer {
 					return res.status(400).json({ message: `Cargo com nome ${roleName} não encontrado.` });
 				}
 
-				const roleRow = _.zipObject(roleCheckResult.columns, roleCheckResult.rows[0]);
-				const roleId = roleRow.id;
+				const roleId = roleCheckResult.rows[0].id;
 
-				console.log(freelancerId, roleId);
 				await db.execute({
 					sql: 'INSERT INTO freelancer_role (freelancer_id, role_id) VALUES (?, ?)',
 					args: [freelancerId, roleId],
@@ -82,6 +80,30 @@ class Freelancer {
 
 			await Cloud.upload(req.files[0].buffer, freelancerId, 'profile-pictures');
 			const profilePictureUrl = `https://res.cloudinary.com/dwngturuh/image/upload/profile-pictures/${freelancerId}.jpg`;
+
+			// Handle highlights
+			for (const highlight of highlights) {
+				const { roleId, imageUrls } = highlight;
+
+				// Insert the highlight
+				const highlightResult = await db.execute({
+					sql: 'INSERT INTO highlight (freelancer_id, role_id) VALUES (?, ?)',
+					args: [freelancerId, roleId],
+				});
+
+				let highlightId = highlightResult.lastInsertRowid;
+				if (typeof highlightId === 'bigint') {
+					highlightId = Number(highlightId);
+				}
+
+				// Insert highlight images
+				for (const imageUrl of imageUrls) {
+					await db.execute({
+						sql: 'INSERT INTO highlight_image (highlight_id, image_url) VALUES (?, ?)',
+						args: [highlightId, imageUrl],
+					});
+				}
+			}
 
 			res.status(201).json({
 				profilePictureUrl,
@@ -118,12 +140,12 @@ class Freelancer {
 				sql += ` GROUP BY f.id, u.id, u.name, u.phone, u.email, u.city, u.state, f.description`;
 			}
 
-			const data = await db.execute({
+			const result = await db.execute({
 				sql,
 				args,
 			});
 
-			const freelancers = data.rows.map((row) => ({
+			const freelancers = result.rows.map((row) => ({
 				...row,
 				roles: row.roles ? row.roles.split(',') : [],
 				profilePictureUrl: `https://res.cloudinary.com/dwngturuh/image/upload/profile-pictures/${row.id}.jpg`,
@@ -143,7 +165,7 @@ class Freelancer {
 		const { id } = req.params;
 
 		try {
-			const data = await db.execute({
+			const result = await db.execute({
 				sql: `SELECT f.id, u.name, u.phone, u.email, u.city, u.state, f.description, GROUP_CONCAT(r.name) as roles
 						FROM freelancer f
 						JOIN user u ON f.user_id = u.id
@@ -154,15 +176,15 @@ class Freelancer {
 				args: [id],
 			});
 
-			if (data.rows.length === 0) {
+			if (result.rows.length === 0) {
 				return res.status(404).json({
 					message: `O prestador de id ${id} não foi encontrado no banco de dados.`,
 				});
 			}
 
 			const freelancer = {
-				...data.rows[0],
-				roles: data.rows[0].roles ? data.rows[0].roles.split(',') : [],
+				...result.rows[0],
+				roles: result.rows[0].roles ? result.rows[0].roles.split(',') : [],
 				profilePictureUrl: `https://res.cloudinary.com/dwngturuh/image/upload/profile-pictures/${id}.jpg`,
 			};
 
@@ -179,12 +201,12 @@ class Freelancer {
 	static deleteOne = async (req, res) => {
 		try {
 			const { id } = req.params;
-			const data = await db.execute({
+			const result = await db.execute({
 				sql: 'SELECT * FROM freelancer WHERE id = ?',
 				args: [id],
 			});
 
-			if (data.rows.length === 0) {
+			if (result.rows.length === 0) {
 				return res.status(404).json({
 					message: `O prestador de ID ${id} não foi encontrado no banco de dados.`,
 				});

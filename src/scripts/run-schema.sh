@@ -1,0 +1,1 @@
+turso db shell main-db < ../config/schema.sql

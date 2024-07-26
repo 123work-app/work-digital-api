@@ -75,7 +75,7 @@ class Freelancer {
 				});
 			}
 
-			await Cloud.upload(req.files[0].buffer, `${freelancerId}.jpg`, 'profile-pictures');
+			await Cloud.upload(req.files[0].buffer, `${freelancerId}`, 'profile-pictures');
 
 			res.status(201).json({ message: 'Prestador cadastrado com sucesso.' });
 		} catch (err) {

@@ -6,17 +6,14 @@ const IS_DEV = process.env.ENV === 'DEV';
 
 const freelancerRoutes = require('./routes/freelancer');
 const userRoutes = require('./routes/user');
+const roleRoutes = require('./routes/role');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use('/freelancers', freelancerRoutes);
 app.use('/users', userRoutes);
-
-app.get('/roles', (req, res) => {
-	const roles = require('./config/roles.json');
-	res.status(200).json(roles);
-});
+app.use('/roles', roleRoutes);
 
 app.get('/ping', (req, res) => {
 	res.status(200).send('pong');

@@ -5,15 +5,13 @@ const Cloud = require('../utils/cloud');
 
 class Freelancer {
 	static create = async (req, res) => {
-		let { cpf, roles, description, highlights } = req.body;
-
+		let { cpf, roles, description } = req.body;
 		if (!cpf || !roles || !description) {
 			return res.status(400).json({ message: 'Preencha todos os campos.' });
 		}
 
 		try {
 			roles = JSON.parse(roles);
-			highlights = JSON.parse(highlights || '[]');
 			cpf = cpf.replace(/[^\d]/g, '');
 
 			if (!Array.isArray(roles) || !Validator.isArrayOfRoles(roles)) {
@@ -61,7 +59,6 @@ class Freelancer {
 				});
 
 				if (roleCheckResult.rows.length === 0) {
-					// Rollback the transaction if role is not found
 					await db.execute({
 						sql: 'DELETE FROM freelancer WHERE id = ?',
 						args: [freelancerId],
@@ -78,37 +75,9 @@ class Freelancer {
 				});
 			}
 
-			await Cloud.upload(req.files[0].buffer, freelancerId, 'profile-pictures');
-			const profilePictureUrl = `https://res.cloudinary.com/dwngturuh/image/upload/profile-pictures/${freelancerId}.jpg`;
+			await Cloud.upload(req.files[0].buffer, `profile_picture_${freelancerId}.jpg`, 'profile-pictures');
 
-			// Handle highlights
-			for (const highlight of highlights) {
-				const { roleId, imageUrls } = highlight;
-
-				// Insert the highlight
-				const highlightResult = await db.execute({
-					sql: 'INSERT INTO highlight (freelancer_id, role_id) VALUES (?, ?)',
-					args: [freelancerId, roleId],
-				});
-
-				let highlightId = highlightResult.lastInsertRowid;
-				if (typeof highlightId === 'bigint') {
-					highlightId = Number(highlightId);
-				}
-
-				// Insert highlight images
-				for (const imageUrl of imageUrls) {
-					await db.execute({
-						sql: 'INSERT INTO highlight_image (highlight_id, image_url) VALUES (?, ?)',
-						args: [highlightId, imageUrl],
-					});
-				}
-			}
-
-			res.status(201).json({
-				profilePictureUrl,
-				message: 'Prestador cadastrado com sucesso.',
-			});
+			res.status(201).json({ message: 'Prestador cadastrado com sucesso.' });
 		} catch (err) {
 			console.error(err);
 			res.status(500).json({
@@ -118,10 +87,68 @@ class Freelancer {
 		}
 	};
 
+	static uploadHighlights = async (req, res) => {
+		const { id } = req.params;
+		const { roleId } = req.body;
+
+		if (!id || !roleId || !Array.isArray(req.files) || req.files.length === 0) {
+			return res.status(400).json({ message: 'Insira todas as informações necessárias (id, roleId e imagens).' });
+		}
+
+		try {
+			// Validate the roleId
+			const roleCheckResult = await db.execute({
+				sql: 'SELECT id FROM role WHERE id = ?',
+				args: [roleId],
+			});
+
+			if (roleCheckResult.rows.length === 0) {
+				return res.status(400).json({ message: `Cargo com ID ${roleId} não encontrado.` });
+			}
+
+			// Create highlight record (only once per roleId)
+			const highlightResult = await db.execute({
+				sql: 'INSERT INTO highlight (freelancer_id, role_id) VALUES (?, ?)',
+				args: [id, roleId],
+			});
+
+			let highlightId = highlightResult.lastInsertRowid;
+			if (typeof highlightId === 'bigint') {
+				highlightId = Number(highlightId);
+			}
+
+			// Upload each image and save URL
+			for (const highlight of req.files) {
+				const { buffer, originalname } = highlight;
+
+				const uploadResult = await Cloud.upload(
+					buffer,
+					`highlight_${id}_${roleId}_${highlightId}_${originalname}`,
+					'highlights'
+				);
+				const imageUrl = uploadResult.secure_url; // Use secure_url from Cloudinary response
+
+				await db.execute({
+					sql: 'INSERT INTO highlight_image (highlight_id, image_url) VALUES (?, ?)',
+					args: [highlightId, imageUrl],
+				});
+			}
+
+			res.status(200).json({ message: 'Destaques atualizados com sucesso.' });
+		} catch (err) {
+			console.error(err);
+			res.status(500).json({
+				message: 'Um erro ocorreu ao fazer upload do destaque.',
+				error: err.stack,
+			});
+		}
+	};
+
 	static getAll = async (req, res) => {
 		const { role } = req.query;
 
 		try {
+			// Fetch freelancers with their basic details and roles
 			let sql = `
 				SELECT f.id, u.id as user_id, u.name, u.phone, u.email, u.city, u.state, f.description, GROUP_CONCAT(r.name) as roles
 				FROM freelancer f
@@ -130,26 +157,50 @@ class Freelancer {
 				LEFT JOIN role r ON fr.role_id = r.id
 			`;
 
-			let args = [];
+			const args = [];
 
 			if (role && role !== 'any') {
-				sql += ` GROUP BY f.id, u.id, u.name, u.phone, u.email, u.city, u.state, f.description
-						 HAVING GROUP_CONCAT(r.name) LIKE ?`;
-				args = [`%${role}%`];
+				sql += `
+					GROUP BY f.id, u.id, u.name, u.phone, u.email, u.city, u.state, f.description
+					HAVING GROUP_CONCAT(r.name) LIKE ?
+				`;
+				args.push(`%${role}%`);
 			} else {
-				sql += ` GROUP BY f.id, u.id, u.name, u.phone, u.email, u.city, u.state, f.description`;
+				sql += `
+					GROUP BY f.id, u.id, u.name, u.phone, u.email, u.city, u.state, f.description
+				`;
 			}
 
-			const result = await db.execute({
-				sql,
-				args,
-			});
+			const freelancerResult = await db.execute({ sql, args });
 
-			const freelancers = result.rows.map((row) => ({
-				...row,
-				roles: row.roles ? row.roles.split(',') : [],
-				profilePictureUrl: `https://res.cloudinary.com/dwngturuh/image/upload/profile-pictures/${row.id}.jpg`,
-			}));
+			const freelancers = await Promise.all(
+				freelancerResult.rows.map(async (row) => {
+					// Fetch highlights and images for each freelancer
+					const highlightsResult = await db.execute({
+						sql: `SELECT h.id as highlight_id, h.role_id, r.name as role_name, GROUP_CONCAT(hi.image_url) as image_urls
+							FROM highlight h
+							JOIN role r ON h.role_id = r.id
+							LEFT JOIN highlight_image hi ON h.id = hi.highlight_id
+							WHERE h.freelancer_id = ?
+							GROUP BY h.id, h.role_id, r.name`,
+						args: [row.id],
+					});
+
+					const highlights = highlightsResult.rows.map((highlight) => ({
+						id: highlight.highlight_id,
+						roleId: highlight.role_id,
+						roleName: highlight.role_name,
+						images: highlight.image_urls ? highlight.image_urls.split(',') : [],
+					}));
+
+					return {
+						...row,
+						roles: row.roles ? row.roles.split(',') : [],
+						profilePictureUrl: `https://res.cloudinary.com/dwngturuh/image/upload/profile-pictures/${row.id}.jpg`,
+						highlights,
+					};
+				})
+			);
 
 			res.status(200).json(freelancers);
 		} catch (err) {
@@ -165,7 +216,8 @@ class Freelancer {
 		const { id } = req.params;
 
 		try {
-			const result = await db.execute({
+			// Fetch freelancer details
+			const freelancerResult = await db.execute({
 				sql: `SELECT f.id, u.name, u.phone, u.email, u.city, u.state, f.description, GROUP_CONCAT(r.name) as roles
 						FROM freelancer f
 						JOIN user u ON f.user_id = u.id
@@ -176,19 +228,40 @@ class Freelancer {
 				args: [id],
 			});
 
-			if (result.rows.length === 0) {
+			if (freelancerResult.rows.length === 0) {
 				return res.status(404).json({
-					message: `O prestador de id ${id} não foi encontrado no banco de dados.`,
+					message: `O prestador de ID ${id} não foi encontrado no banco de dados.`,
 				});
 			}
 
 			const freelancer = {
-				...result.rows[0],
-				roles: result.rows[0].roles ? result.rows[0].roles.split(',') : [],
+				...freelancerResult.rows[0],
+				roles: freelancerResult.rows[0].roles ? freelancerResult.rows[0].roles.split(',') : [],
 				profilePictureUrl: `https://res.cloudinary.com/dwngturuh/image/upload/profile-pictures/${id}.jpg`,
 			};
 
-			res.status(200).json(freelancer);
+			// Fetch highlights and their images
+			const highlightsResult = await db.execute({
+				sql: `SELECT h.id as highlight_id, h.role_id, r.name as role_name, GROUP_CONCAT(hi.image_url) as image_urls
+						FROM highlight h
+						JOIN role r ON h.role_id = r.id
+						LEFT JOIN highlight_image hi ON h.id = hi.highlight_id
+						WHERE h.freelancer_id = ?
+						GROUP BY h.id, h.role_id, r.name`,
+				args: [id],
+			});
+
+			const highlights = highlightsResult.rows.map((highlight) => ({
+				id: highlight.highlight_id,
+				roleId: highlight.role_id,
+				roleName: highlight.role_name,
+				images: highlight.image_urls ? highlight.image_urls.split(',') : [],
+			}));
+
+			res.status(200).json({
+				freelancer,
+				highlights,
+			});
 		} catch (err) {
 			console.error(err);
 			res.status(500).json({
@@ -199,29 +272,60 @@ class Freelancer {
 	};
 
 	static deleteOne = async (req, res) => {
+		const { id } = req.params;
+
 		try {
-			const { id } = req.params;
-			const result = await db.execute({
+			// Start a transaction
+			const transaction = await db.transaction('write');
+
+			// Check if the freelancer exists
+			const freelancerResult = await transaction.execute({
 				sql: 'SELECT * FROM freelancer WHERE id = ?',
 				args: [id],
 			});
 
-			if (result.rows.length === 0) {
+			if (freelancerResult.rows.length === 0) {
+				await transaction.rollback();
 				return res.status(404).json({
 					message: `O prestador de ID ${id} não foi encontrado no banco de dados.`,
 				});
 			}
 
-			await db.execute({
+			// Delete associated highlight images
+			await transaction.execute({
+				sql: 'DELETE FROM highlight_image WHERE highlight_id IN (SELECT id FROM highlight WHERE freelancer_id = ?)',
+				args: [id],
+			});
+
+			// Delete associated highlights
+			await transaction.execute({
+				sql: 'DELETE FROM highlight WHERE freelancer_id = ?',
+				args: [id],
+			});
+
+			// Delete freelancer roles
+			await transaction.execute({
+				sql: 'DELETE FROM freelancer_role WHERE freelancer_id = ?',
+				args: [id],
+			});
+
+			// Delete profile picture from Cloudinary
+			// Assuming profile picture URL follows a consistent naming pattern
+			await Cloud.delete(`profile-pictures/${id}.jpg`);
+
+			// Delete the freelancer record
+			await transaction.execute({
 				sql: 'DELETE FROM freelancer WHERE id = ?',
 				args: [id],
 			});
 
-			// Delete profile picture from Cloudinary (optional, if implemented)
+			// Commit the transaction
+			await transaction.commit();
 
 			res.status(200).json({ message: 'Prestador deletado com sucesso!' });
 		} catch (err) {
 			console.error(err);
+			if (transaction) await transaction.rollback();
 			res.status(500).json({
 				message: 'Erro ao deletar prestador.',
 				error: err.stack,

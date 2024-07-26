@@ -5,60 +5,6 @@ const db = require('../config/db');
 const Validator = require('../utils/validator');
 
 class User {
-	static create = async (req, res) => {
-		const { name, email, password, cpf, state, city, neighborhood, street, number, phone, birthdate } = req.body;
-
-		if (
-			!name ||
-			!email ||
-			!password ||
-			!cpf ||
-			!state ||
-			!city ||
-			!neighborhood ||
-			!street ||
-			!number ||
-			!phone ||
-			!birthdate
-		) {
-			return res.status(400).json({ message: 'Preencha todos os campos.' });
-		}
-
-		if (!Validator.isCPF(cpf)) {
-			return res.status(400).json({ message: 'O CPF inserido é inválido.' });
-		}
-
-		// Sanitize input
-		cpf = cpf.replace(/[^\d]/g, '');
-
-		try {
-			const existingUser = await db.execute({
-				sql: 'SELECT * FROM user WHERE email = ? OR cpf = ?',
-				args: [email, cpf],
-			});
-			if (existingUser.rows.length > 0) {
-				return res.status(400).json({ message: 'E-mail ou CPF já cadastrados.' });
-			}
-
-			const hashedPassword = await bcrypt.hash(password, 10);
-
-			await db.execute({
-				sql: 'INSERT INTO user (name, email, password, cpf, state, city, neighborhood, street, number, phone, birthdate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-				args: [name, email, hashedPassword, cpf, state, city, neighborhood, street, number, phone, birthdate],
-			});
-
-			res.status(201).json({
-				message: 'Usuário cadastrado com sucesso.',
-			});
-		} catch (err) {
-			console.error(err);
-			res.status(500).json({
-				message: 'Um erro ocorreu durante o cadastro do usuário.',
-				error: err.stack,
-			});
-		}
-	};
-
 	static auth = async (req, res) => {
 		const { email, password } = req.body;
 
@@ -89,6 +35,120 @@ class User {
 			console.error(err);
 			res.status(500).json({
 				message: 'Um erro ocorreu durante a autenticação.',
+				error: err.stack,
+			});
+		}
+	};
+
+	static create = async (req, res) => {
+		const { name, email, password, cpf, state, city, neighborhood, street, number, phone, birthdate } = req.body;
+
+		if (
+			!name ||
+			!email ||
+			!password ||
+			!cpf ||
+			!state ||
+			!city ||
+			!neighborhood ||
+			!street ||
+			!number ||
+			!phone ||
+			!birthdate
+		) {
+			return res
+				.status(400)
+				.json({
+					message:
+						'Preencha todos os campos (name, email, password, cpf, state, city, neighborhood, street, number, phone, birthdate).',
+				});
+		}
+
+		if (!Validator.isCPF(cpf)) {
+			return res.status(400).json({ message: 'O CPF inserido é inválido.' });
+		}
+
+		// Sanitize input
+		const sanitizedCpf = cpf.replace(/[^\d]/g, '');
+
+		try {
+			const existingUser = await db.execute({
+				sql: 'SELECT * FROM user WHERE email = ? OR cpf = ?',
+				args: [email, cpf],
+			});
+			if (existingUser.rows.length > 0) {
+				return res.status(400).json({ message: 'E-mail ou CPF já cadastrados.' });
+			}
+
+			const hashedPassword = await bcrypt.hash(password, 10);
+
+			await db.execute({
+				sql: 'INSERT INTO user (name, email, password, cpf, state, city, neighborhood, street, number, phone, birthdate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+				args: [
+					name,
+					email,
+					hashedPassword,
+					sanitizedCpf,
+					state,
+					city,
+					neighborhood,
+					street,
+					number,
+					phone,
+					birthdate,
+				],
+			});
+
+			res.status(201).json({
+				message: 'Usuário cadastrado com sucesso.',
+			});
+		} catch (err) {
+			console.error(err);
+			res.status(500).json({
+				message: 'Um erro ocorreu durante o cadastro do usuário.',
+				error: err.stack,
+			});
+		}
+	};
+
+	static update = async (req, res) => {
+		const { id } = req.params;
+		const { name, password, state, city, neighborhood, street, number, phone, birthdate } = req.body;
+
+		if (!name || !state || !city || !neighborhood || !street || !number || !phone || !birthdate) {
+			return res.status(400).json({
+				message:
+					'Preencha todos os campos obrigatórios (name, password, state, city, neighborhood, street, number, phone, birthdate).',
+			});
+		}
+
+		try {
+			const result = await db.execute({
+				sql: 'SELECT * FROM user WHERE id = ?',
+				args: [id],
+			});
+
+			if (result.rows.length === 0) {
+				return res.status(404).json({
+					message: `O usuário de ID ${id} não foi encontrado no banco de dados.`,
+				});
+			}
+
+			const user = result.rows[0];
+			const hashedPassword = password ? await bcrypt.hash(password, 10) : user.password;
+
+			await db.execute({
+				sql: `UPDATE user 
+					  SET name = ?, password = ?, state = ?, city = ?, neighborhood = ?, street = ?, number = ?, phone = ?, birthdate = ?
+					  WHERE id = ?`,
+				args: [name, hashedPassword, state, city, neighborhood, street, number, phone, birthdate, id],
+			});
+
+			res.status(200).json({ message: 'Usuário atualizado com sucesso.' });
+		} catch (err) {
+			console.error(err);
+			res.status(500).json({
+				message: 'Um erro ocorreu durante a atualização do usuário.',
 				error: err.stack,
 			});
 		}

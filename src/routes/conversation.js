@@ -17,6 +17,7 @@ router.get('/', (req, res) => {
 
 	return res.status(400).json({ message: 'Either user_id or freelancer_id is required to fetch conversations.' });
 });
+router.get('/:id', Conversation.getOne);
 router.delete('/:id', Conversation.deleteOne);
 
 module.exports = router;

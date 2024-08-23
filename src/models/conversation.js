@@ -84,6 +84,38 @@ class Conversation {
 		}
 	};
 
+	static getOne = async (req, res) => {
+		const { id } = req.params;
+
+		try {
+			// Fetch conversation details
+			const convoResult = await db.execute({
+				sql: `SELECT * FROM conversation WHERE id = ?`,
+				args: [id],
+			});
+
+			if (convoResult.rows.length === 0) {
+				return res.status(404).json({ message: 'Conversation not found.' });
+			}
+
+			const conversation = convoResult.rows[0];
+
+			// Fetch messages for the conversation
+			const result = await db.execute({
+				sql: `SELECT * FROM message WHERE conversation_id = ? ORDER BY timestamp ASC`,
+				args: [id],
+			});
+
+			res.status(200).json({
+				conversation,
+				messages: result.rows,
+			});
+		} catch (err) {
+			console.error(err);
+			res.status(500).json({ message: 'Error fetching conversation.', error: err.stack });
+		}
+	};
+
 	static deleteOne = async (req, res) => {
 		const { id } = req.params;
 

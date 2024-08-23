@@ -19,9 +19,16 @@ class Conversation {
 				return res.status(200).json({ message: 'Conversation already exists.', conversationId });
 			}
 
+			const freelancerResult = await db.execute({
+				sql: `SELECT id FROM freelancer WHERE user_id = ?`,
+				args: [freelancer_id],
+			});
+
+			const freelancerProfileId = freelancerResult.rows[0].id;
+
 			const result = await db.execute({
-				sql: `INSERT INTO conversation (user_id, freelancer_id) VALUES (?, ?)`,
-				args: [user_id, freelancer_id],
+				sql: `INSERT INTO conversation (user_id, freelancer_id, freelancer_profile_id) VALUES (?, ?, ?)`,
+				args: [user_id, freelancer_id, freelancerProfileId],
 			});
 
 			let conversationId = result.lastInsertRowid;
@@ -46,7 +53,7 @@ class Conversation {
 		try {
 			// Retrieve all conversations for a specific user
 			const result = await db.execute({
-				sql: `SELECT c.id, c.user_id, c.freelancer_id, u.name AS freelancer_name
+				sql: `SELECT c.id, c.user_id, c.freelancer_id, c.freelancer_profile_id, u.name AS freelancer_name
                       FROM conversation c
                       JOIN user u ON c.freelancer_id = u.id
                       WHERE c.user_id = ?`,
@@ -70,7 +77,7 @@ class Conversation {
 		try {
 			// Retrieve all conversations for a specific freelancer
 			const result = await db.execute({
-				sql: `SELECT c.id, c.user_id, u.name AS user_name, c.freelancer_id
+				sql: `SELECT c.id, c.user_id, u.name AS user_name, c.freelancer_id, c.freelancer_profile_id
                       FROM conversation c
                       JOIN user u ON c.user_id = u.id
                       WHERE c.freelancer_id = ?`,
@@ -91,7 +98,7 @@ class Conversation {
 			// Fetch conversation details with freelancer_name
 			const convoResult = await db.execute({
 				sql: `
-              SELECT c.id, c.user_id, c.freelancer_id, u.name AS freelancer_name
+              SELECT c.id, c.user_id, c.freelancer_id, c.freelancer_profile_id, u.name AS freelancer_name
               FROM conversation c
               JOIN user u ON c.freelancer_id = u.id
               WHERE c.id = ?

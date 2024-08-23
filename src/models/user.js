@@ -104,7 +104,7 @@ class User {
 
 			res.status(201).json({
 				message: 'Usuário cadastrado com sucesso.',
-				user: { id: userId },
+				user: { id: '' + userId },
 			});
 		} catch (err) {
 			console.error(err);

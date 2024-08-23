@@ -9,7 +9,16 @@ class Conversation {
 		}
 
 		try {
-			// Insert new conversation into the conversation table
+			const existingConversation = await db.execute({
+				sql: `SELECT * FROM conversation WHERE user_id = ? AND freelancer_id = ?`,
+				args: [user_id, freelancer_id],
+			});
+
+			if (existingConversation.rows.length > 0) {
+				const conversationId = existingConversation.rows[0].id;
+				return res.status(200).json({ message: 'Conversation already exists.', conversationId });
+			}
+
 			const result = await db.execute({
 				sql: `INSERT INTO conversation (user_id, freelancer_id) VALUES (?, ?)`,
 				args: [user_id, freelancer_id],

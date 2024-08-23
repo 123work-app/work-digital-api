@@ -56,12 +56,10 @@ class User {
 			!phone ||
 			!birthdate
 		) {
-			return res
-				.status(400)
-				.json({
-					message:
-						'Preencha todos os campos (name, email, password, cpf, state, city, neighborhood, street, number, phone, birthdate).',
-				});
+			return res.status(400).json({
+				message:
+					'Preencha todos os campos (name, email, password, cpf, state, city, neighborhood, street, number, phone, birthdate).',
+			});
 		}
 
 		if (!Validator.isCPF(cpf)) {
@@ -82,7 +80,7 @@ class User {
 
 			const hashedPassword = await bcrypt.hash(password, 10);
 
-			await db.execute({
+			const result = await db.execute({
 				sql: 'INSERT INTO user (name, email, password, cpf, state, city, neighborhood, street, number, phone, birthdate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
 				args: [
 					name,
@@ -99,8 +97,14 @@ class User {
 				],
 			});
 
+			let userId = result.lastInsertRowid;
+			if (typeof userId === 'bigint') {
+				userId = Number(userId);
+			}
+
 			res.status(201).json({
 				message: 'Usuário cadastrado com sucesso.',
+				user: { id: userId },
 			});
 		} catch (err) {
 			console.error(err);

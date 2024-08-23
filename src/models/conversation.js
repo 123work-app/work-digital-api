@@ -88,9 +88,14 @@ class Conversation {
 		const { id } = req.params;
 
 		try {
-			// Fetch conversation details
+			// Fetch conversation details with freelancer_name
 			const convoResult = await db.execute({
-				sql: `SELECT * FROM conversation WHERE id = ?`,
+				sql: `
+              SELECT c.id, c.user_id, c.freelancer_id, u.name AS freelancer_name
+              FROM conversation c
+              JOIN user u ON c.freelancer_id = u.id
+              WHERE c.id = ?
+            `,
 				args: [id],
 			});
 
@@ -101,14 +106,14 @@ class Conversation {
 			const conversation = convoResult.rows[0];
 
 			// Fetch messages for the conversation
-			const result = await db.execute({
+			const messagesResult = await db.execute({
 				sql: `SELECT * FROM message WHERE conversation_id = ? ORDER BY timestamp ASC`,
 				args: [id],
 			});
 
 			res.status(200).json({
 				conversation,
-				messages: result.rows,
+				messages: messagesResult.rows,
 			});
 		} catch (err) {
 			console.error(err);

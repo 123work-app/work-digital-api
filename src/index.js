@@ -7,6 +7,8 @@ const IS_DEV = process.env.ENV === 'DEV';
 const freelancerRoutes = require('./routes/freelancer');
 const userRoutes = require('./routes/user');
 const roleRoutes = require('./routes/role');
+const conversationRoutes = require('./routes/conversation');
+const messageRoutes = require('./routes/message');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -14,6 +16,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/freelancers', freelancerRoutes);
 app.use('/users', userRoutes);
 app.use('/roles', roleRoutes);
+app.use('/conversations', conversationRoutes);
+app.use('/messages', messageRoutes);
 
 app.get('/ping', (req, res) => {
 	res.status(200).send('pong');
